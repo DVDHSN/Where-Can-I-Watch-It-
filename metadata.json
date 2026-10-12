@@ -1,0 +1,6 @@
+{
+  "name": "Where Can I Watch It?",
+  "description": "Find if movies and TV shows are included in your streaming subscriptions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
