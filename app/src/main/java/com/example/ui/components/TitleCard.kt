@@ -1,8 +1,12 @@
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,8 +22,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tv
@@ -29,9 +36,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -45,39 +54,48 @@ import coil.request.ImageRequest
 import com.example.domain.model.MediaType
 import com.example.domain.model.Title
 import com.example.domain.model.Verdict
-import com.example.ui.theme.CinemaBorder
-import com.example.ui.theme.CinemaPrimary
-import com.example.ui.theme.CinemaSurface
-import com.example.ui.theme.CinemaSurfaceVariant
+import com.example.ui.theme.AppleBorder
+import com.example.ui.theme.AppleGold
+import com.example.ui.theme.AppleLabelPrimary
+import com.example.ui.theme.AppleLabelSecondary
+import com.example.ui.theme.AppleSecondaryBackground
+import com.example.ui.theme.AppleTertiaryBackground
 
+/**
+ * Apple Inset Grouped Title Card.
+ * Features tactile spring compression on press, poster thumbnail, and animated metadata.
+ */
 @Composable
 fun TitleCard(
     title: Title,
     verdict: Verdict?,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isInWatchlist: Boolean = false,
+    onToggleWatchlist: (() -> Unit)? = null
 ) {
     Card(
         modifier = modifier
             .testTag("title_card_${title.id}")
             .fillMaxWidth()
-            .bouncyClickable(onClick = onClick)
-            .border(1.dp, CinemaBorder, RoundedCornerShape(16.dp)),
+            .applePressEffect(scaleDown = 0.97f, alphaDown = 0.9f, onClick = onClick)
+            .border(0.6.dp, AppleBorder, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = CinemaSurface)
+        colors = CardDefaults.cardColors(containerColor = AppleSecondaryBackground)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(10.dp)
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Poster with rounded corners & shimmer fallback
+            // High-fidelity Poster with Apple continuous curvature
             Box(
                 modifier = Modifier
-                    .width(76.dp)
+                    .width(72.dp)
                     .aspectRatio(2f / 3f)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(CinemaSurfaceVariant),
+                    .background(AppleTertiaryBackground),
                 contentAlignment = Alignment.Center
             ) {
                 if (title.posterUrl != null) {
@@ -94,35 +112,72 @@ fun TitleCard(
                     Icon(
                         imageVector = if (title.mediaType == MediaType.TV) Icons.Default.Tv else Icons.Default.Movie,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                        modifier = Modifier.size(32.dp)
+                        tint = AppleLabelSecondary.copy(alpha = 0.5f),
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(13.dp))
 
-            // Metadata & Verdict
+            // Metadata & Content Details
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .align(Alignment.CenterVertically),
-                verticalArrangement = Arrangement.spacedBy(5.dp)
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Title
-                Text(
-                    text = title.title,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        letterSpacing = (-0.2).sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = title.title,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            letterSpacing = (-0.25).sp
+                        ),
+                        color = AppleLabelPrimary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
 
-                // Year & Type Badges
+                    // Optional Quick-Action Watchlist Button with Spring Pulse
+                    if (onToggleWatchlist != null) {
+                        val bookmarkScale by animateFloatAsState(
+                            targetValue = if (isInWatchlist) 1.2f else 1f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMedium
+                            ),
+                            label = "bookmark_spring_scale"
+                        )
+                        val iconColor by animateColorAsState(
+                            targetValue = if (isInWatchlist) AppleGold else AppleLabelSecondary,
+                            label = "bookmark_tint"
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 6.dp)
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .applePressEffect(scaleDown = 0.82f, onClick = onToggleWatchlist)
+                                .scale(bookmarkScale),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isInWatchlist) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                contentDescription = if (isInWatchlist) "Remove from Watchlist" else "Save to Watchlist",
+                                tint = iconColor,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Subtitle metadata: Year • Type • Rating
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -131,26 +186,29 @@ fun TitleCard(
                         Text(
                             text = title.releaseYear,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = AppleLabelSecondary,
+                            fontSize = 12.sp
                         )
                         Text(
                             text = "•",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            color = AppleLabelSecondary.copy(alpha = 0.4f)
                         )
                     }
 
+                    // Media Type Minimal Capsule
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(CinemaSurfaceVariant)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(AppleTertiaryBackground)
+                            .padding(horizontal = 5.dp, vertical = 1.5.dp)
                     ) {
                         Text(
                             text = if (title.mediaType == MediaType.TV) "TV" else "MOVIE",
                             fontSize = 9.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = CinemaPrimary
+                            fontWeight = FontWeight.Bold,
+                            color = AppleLabelSecondary,
+                            letterSpacing = 0.2.sp
                         )
                     }
 
@@ -160,21 +218,21 @@ fun TitleCard(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(3.dp),
                             modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0x22FACC15))
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                                .clip(CircleShape)
+                                .background(AppleGold.copy(alpha = 0.12f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Star,
                                 contentDescription = null,
-                                tint = CinemaPrimary,
+                                tint = AppleGold,
                                 modifier = Modifier.size(11.dp)
                             )
                             Text(
                                 text = String.format("%.1f", title.voteAverage),
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                                 fontSize = 11.sp,
-                                color = CinemaPrimary
+                                fontWeight = FontWeight.Bold,
+                                color = AppleGold
                             )
                         }
                     }
@@ -182,10 +240,14 @@ fun TitleCard(
 
                 Spacer(modifier = Modifier.height(2.dp))
 
-                // Verdict Badge with Animated Reveal
+                // Spring-revealed Verdict Badge
                 AnimatedVisibility(
                     visible = verdict != null,
-                    enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { 20 }
+                    enter = fadeIn(
+                        spring(dampingRatio = Spring.DampingRatioNoBouncy)
+                    ) + slideInVertically(
+                        spring(dampingRatio = Spring.DampingRatioMediumBouncy)
+                    ) { 15 } + scaleIn(initialScale = 0.92f)
                 ) {
                     if (verdict != null) {
                         VerdictBadge(

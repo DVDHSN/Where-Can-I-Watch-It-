@@ -1,10 +1,14 @@
 package com.example.ui.screens.search
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,18 +27,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,7 +51,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -58,24 +64,29 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.domain.model.CountryPresets
 import com.example.domain.model.MediaType
+import com.example.ui.components.AppleSegmentedControl
 import com.example.ui.components.OnboardingDialog
 import com.example.ui.components.ProviderLogo
 import com.example.ui.components.TitleCard
 import com.example.ui.components.TitleDetailsBottomSheet
-import com.example.ui.components.bouncyClickable
-import com.example.ui.theme.CinemaBackground
-import com.example.ui.theme.CinemaBorder
-import com.example.ui.theme.CinemaPrimary
-import com.example.ui.theme.CinemaSurface
-import com.example.ui.theme.CinemaSurfaceVariant
-import com.example.ui.theme.VerdictIncluded
+import com.example.ui.components.applePressEffect
+import com.example.ui.theme.AppleBackground
+import com.example.ui.theme.AppleBorder
+import com.example.ui.theme.AppleGold
+import com.example.ui.theme.AppleGreen
+import com.example.ui.theme.AppleLabelPrimary
+import com.example.ui.theme.AppleLabelSecondary
+import com.example.ui.theme.AppleLabelTertiary
+import com.example.ui.theme.AppleSecondaryBackground
+import com.example.ui.theme.AppleTertiaryBackground
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
     viewModel: SearchViewModel,
     onNavigateToSettings: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onShowNotification: ((ImageVector, String, Color) -> Unit)? = null
 ) {
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val mediaTypeFilter by viewModel.mediaTypeFilter.collectAsStateWithLifecycle()
@@ -87,6 +98,7 @@ fun SearchScreen(
     val countryCode by viewModel.countryCode.collectAsStateWithLifecycle()
     val subscribedProviderIds by viewModel.subscribedProviderIds.collectAsStateWithLifecycle()
     val onboardingCompleted by viewModel.onboardingCompleted.collectAsStateWithLifecycle()
+    val savedWatchlistIds by viewModel.savedWatchlistIds.collectAsStateWithLifecycle()
 
     val selectedTitle by viewModel.selectedTitle.collectAsStateWithLifecycle()
     val selectedAvailability by viewModel.selectedTitleAvailability.collectAsStateWithLifecycle()
@@ -108,6 +120,7 @@ fun SearchScreen(
             initialSelectedProviders = subscribedProviderIds,
             onComplete = { country, subscriptions ->
                 viewModel.completeOnboarding(country, subscriptions)
+                onShowNotification?.invoke(Icons.Default.Movie, "Welcome to Where Can I Watch It!", AppleGold)
             },
             onDismiss = {
                 viewModel.completeOnboarding(countryCode, subscribedProviderIds)
@@ -124,7 +137,15 @@ fun SearchScreen(
             userSubscriptions = subscribedProviderIds,
             isInWatchlist = isSelectedInWatchlist,
             isLoadingVerdict = isLoadingDetails,
-            onToggleWatchlist = { viewModel.toggleWatchlistForSelected() },
+            onToggleWatchlist = {
+                val wasInWatchlist = isSelectedInWatchlist
+                viewModel.toggleWatchlistForSelected()
+                if (!wasInWatchlist) {
+                    onShowNotification?.invoke(Icons.Default.Bookmark, "Saved to Watchlist", AppleGold)
+                } else {
+                    onShowNotification?.invoke(Icons.Default.Bookmark, "Removed from Watchlist", AppleLabelSecondary)
+                }
+            },
             onDismiss = { viewModel.closeTitleDetails() },
             sheetState = sheetState
         )
@@ -133,13 +154,13 @@ fun SearchScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(CinemaBackground)
+            .background(AppleBackground)
             .padding(horizontal = 16.dp)
             .testTag("search_screen")
     ) {
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // App Header: Minimalist Typographic Branding
+        // Apple Large Title Header + Country Pill
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -147,28 +168,25 @@ fun SearchScreen(
         ) {
             Column {
                 Text(
-                    text = "Where Can I Watch It?",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = (-0.4).sp
-                    ),
-                    color = MaterialTheme.colorScheme.onBackground
+                    text = "Search",
+                    style = MaterialTheme.typography.displayMedium,
+                    color = AppleLabelPrimary
                 )
                 Text(
                     text = "Subscriptions-first streaming verdict",
                     style = MaterialTheme.typography.bodySmall,
-                    color = CinemaPrimary,
-                    fontWeight = FontWeight.SemiBold
+                    color = AppleLabelSecondary,
+                    letterSpacing = (-0.1).sp
                 )
             }
 
-            // Country Pill with bouncy micro-interaction
+            // Apple Region Capsule Pill with spring compression
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(CinemaSurface)
-                    .border(0.8.dp, CinemaBorder, RoundedCornerShape(20.dp))
-                    .bouncyClickable(onClick = onNavigateToSettings)
+                    .clip(CircleShape)
+                    .background(AppleSecondaryBackground)
+                    .border(0.6.dp, AppleBorder, CircleShape)
+                    .applePressEffect(scaleDown = 0.9f, onClick = onNavigateToSettings)
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(5.dp)
@@ -177,15 +195,16 @@ fun SearchScreen(
                 Text(
                     text = currentCountry.code,
                     fontSize = 11.5.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    fontWeight = FontWeight.Bold,
+                    color = AppleLabelPrimary,
+                    letterSpacing = 0.2.sp
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        // Search Input Field with Minimalist Hairline Border & Yellow Tint
+        // Apple Search Input Bar
         OutlinedTextField(
             value = searchQuery,
             onValueChange = viewModel::onQueryChanged,
@@ -194,94 +213,94 @@ fun SearchScreen(
                 .testTag("search_text_input"),
             placeholder = {
                 Text(
-                    text = "Search movies or shows...",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    fontSize = 14.sp
+                    text = "Movies, shows, documentaries...",
+                    color = AppleLabelTertiary,
+                    fontSize = 14.5.sp,
+                    letterSpacing = (-0.2).sp
                 )
             },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Search,
                     contentDescription = "Search",
-                    tint = CinemaPrimary,
-                    modifier = Modifier.size(20.dp)
+                    tint = AppleLabelSecondary,
+                    modifier = Modifier.size(19.dp)
                 )
             },
             trailingIcon = {
                 AnimatedVisibility(
                     visible = searchQuery.isNotEmpty(),
-                    enter = fadeIn(tween(150)),
-                    exit = fadeOut(tween(150))
+                    enter = fadeIn(tween(150)) + scaleIn(initialScale = 0.8f),
+                    exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.8f)
                 ) {
                     IconButton(
                         onClick = { viewModel.onQueryChanged("") },
-                        modifier = Modifier.bouncyClickable { viewModel.onQueryChanged("") }
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF2C2C2E))
+                            .applePressEffect(scaleDown = 0.85f) { viewModel.onQueryChanged("") }
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Clear,
+                            imageVector = Icons.Default.Close,
                             contentDescription = "Clear",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
+                            tint = AppleLabelSecondary,
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }
             },
             singleLine = true,
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = CinemaSurface,
-                unfocusedContainerColor = CinemaSurface,
-                focusedBorderColor = CinemaPrimary,
-                unfocusedBorderColor = CinemaBorder,
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                focusedContainerColor = AppleSecondaryBackground,
+                unfocusedContainerColor = AppleSecondaryBackground,
+                focusedBorderColor = AppleBorder,
+                unfocusedBorderColor = AppleBorder,
+                focusedTextColor = AppleLabelPrimary,
+                unfocusedTextColor = AppleLabelPrimary,
+                cursorColor = AppleGold
             ),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() })
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Filter Chips (All, Movies, TV)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            MediaTypeFilterChip(
-                label = "All Titles",
-                isSelected = mediaTypeFilter == MediaType.ALL,
-                onClick = { viewModel.onMediaTypeChanged(MediaType.ALL) }
-            )
-            MediaTypeFilterChip(
-                label = "Movies",
-                isSelected = mediaTypeFilter == MediaType.MOVIE,
-                onClick = { viewModel.onMediaTypeChanged(MediaType.MOVIE) }
-            )
-            MediaTypeFilterChip(
-                label = "TV Series",
-                isSelected = mediaTypeFilter == MediaType.TV,
-                onClick = { viewModel.onMediaTypeChanged(MediaType.TV) }
-            )
-        }
+        // Apple Segmented Control for Media Filters (All | Movies | TV Shows)
+        val mediaFilterOptions = listOf(MediaType.ALL, MediaType.MOVIE, MediaType.TV)
+        AppleSegmentedControl(
+            items = mediaFilterOptions,
+            selectedItem = mediaTypeFilter,
+            onItemSelected = viewModel::onMediaTypeChanged,
+            itemLabel = {
+                when (it) {
+                    MediaType.ALL -> "All Titles"
+                    MediaType.MOVIE -> "Movies"
+                    MediaType.TV -> "TV Shows"
+                }
+            }
+        )
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Compact Row of User's Selected Streaming Services
+        // User's Subscriptions Quick Bar
         if (subscribedPresets.isNotEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(CinemaSurface)
-                    .border(0.8.dp, CinemaBorder, RoundedCornerShape(10.dp))
-                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                    .background(AppleSecondaryBackground)
+                    .border(0.6.dp, AppleBorder, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "My Services",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = VerdictIncluded
+                    text = "ACTIVE PLANS",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AppleGreen,
+                    letterSpacing = 0.4.sp
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 LazyRow(
@@ -292,14 +311,14 @@ fun SearchScreen(
                         ProviderLogo(
                             logoUrl = preset.logoUrl,
                             providerName = preset.name,
-                            size = 22.dp
+                            size = 20.dp
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Content Area
         Box(
@@ -314,9 +333,9 @@ fun SearchScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator(
-                            color = CinemaPrimary,
+                            color = AppleGold,
                             strokeWidth = 2.5.dp,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(28.dp)
                         )
                     }
                 }
@@ -330,23 +349,32 @@ fun SearchScreen(
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.SearchOff,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.size(44.dp)
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(AppleSecondaryBackground)
+                                    .border(0.6.dp, AppleBorder, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SearchOff,
+                                    contentDescription = null,
+                                    tint = AppleLabelSecondary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                            Text(
+                                text = "Search Unavailable",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = AppleLabelPrimary
                             )
                             Text(
-                                text = "Unable to complete search",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = errorMessage ?: "Please check your network connection.",
+                                text = errorMessage ?: "Please check network connection or verify your TMDB key in Settings.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = AppleLabelSecondary,
                                 textAlign = TextAlign.Center
                             )
                         }
@@ -354,7 +382,7 @@ fun SearchScreen(
                 }
 
                 searchQuery.isBlank() -> {
-                    // Minimalist Empty Zero State
+                    // Apple Minimalist Zero State
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -363,24 +391,37 @@ fun SearchScreen(
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.LiveTv,
-                                contentDescription = null,
-                                tint = CinemaPrimary.copy(alpha = 0.6f),
-                                modifier = Modifier.size(48.dp)
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(AppleSecondaryBackground)
+                                    .border(0.6.dp, AppleBorder, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = AppleGold,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                            Text(
+                                text = "Search Movies & TV Shows",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = (-0.2).sp
+                                ),
+                                color = AppleLabelPrimary
                             )
                             Text(
-                                text = "Search any Movie or Show",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Instant streaming availability verdict tailored to your ${currentCountry.name} active subscriptions.",
+                                text = "Find out instantly whether titles are included in your ${currentCountry.name} active streaming catalog.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
+                                color = AppleLabelSecondary,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 18.sp
                             )
                         }
                     }
@@ -397,21 +438,15 @@ fun SearchScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.SearchOff,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                modifier = Modifier.size(44.dp)
+                            Text(
+                                text = "No Results for \"$searchQuery\"",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = AppleLabelPrimary
                             )
                             Text(
-                                text = "No titles found for \"$searchQuery\"",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Try checking spelling or trying another title.",
+                                text = "Check the spelling or try searching for another title.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = AppleLabelSecondary
                             )
                         }
                     }
@@ -421,12 +456,22 @@ fun SearchScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(bottom = 16.dp)
+                        contentPadding = PaddingValues(top = 4.dp, bottom = 18.dp)
                     ) {
                         items(searchResults, key = { "${it.id}_${it.mediaType}" }) { title ->
+                            val isSaved = savedWatchlistIds.contains(title.id)
                             TitleCard(
                                 title = title,
                                 verdict = titleVerdicts[title.id],
+                                isInWatchlist = isSaved,
+                                onToggleWatchlist = {
+                                    viewModel.toggleWatchlist(title)
+                                    if (!isSaved) {
+                                        onShowNotification?.invoke(Icons.Default.Bookmark, "Saved ${title.title}", AppleGold)
+                                    } else {
+                                        onShowNotification?.invoke(Icons.Default.Bookmark, "Removed ${title.title}", AppleLabelSecondary)
+                                    }
+                                },
                                 onClick = { viewModel.openTitleDetails(title) }
                             )
                         }
@@ -435,29 +480,4 @@ fun SearchScreen(
             }
         }
     }
-}
-
-@Composable
-private fun MediaTypeFilterChip(
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    FilterChip(
-        selected = isSelected,
-        onClick = onClick,
-        label = { Text(label, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = CinemaPrimary,
-            selectedLabelColor = Color.Black,
-            containerColor = CinemaSurface,
-            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-        ),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = isSelected,
-            borderColor = if (isSelected) CinemaPrimary else CinemaBorder
-        ),
-        modifier = Modifier.bouncyClickable(onClick = onClick)
-    )
 }

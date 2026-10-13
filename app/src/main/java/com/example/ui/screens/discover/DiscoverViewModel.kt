@@ -13,17 +13,21 @@ import com.example.domain.model.Verdict
 import com.example.domain.usecase.ResolveVerdictUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class DiscoverViewModel(
     private val tmdbRepository: TmdbRepository,
     private val watchlistRepository: WatchlistRepository,
@@ -37,6 +41,10 @@ class DiscoverViewModel(
     val subscribedProviderIds: StateFlow<Set<Int>> = preferencesRepository.subscribedProviderIds
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), setOf(8, 337, 119, 350))
 
+    val savedWatchlistIds: StateFlow<Set<Int>> = watchlistRepository.allWatchlist
+        .map { list -> list.map { it.id }.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     private val _trendingTitles = MutableStateFlow<List<Title>>(emptyList())
     val trendingTitles: StateFlow<List<Title>> = _trendingTitles.asStateFlow()
 
@@ -48,6 +56,14 @@ class DiscoverViewModel(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _isLoadingMore = MutableStateFlow(false)
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
+
+    private val _canLoadMore = MutableStateFlow(true)
+    val canLoadMore: StateFlow<Boolean> = _canLoadMore.asStateFlow()
+
+    private var currentPage = 1
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -72,20 +88,22 @@ class DiscoverViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    // Derived filtered list applying all 6 user criteria
+    // Derived filtered list applying user criteria
     val filteredTitles: StateFlow<List<Title>> = combine(
         _trendingTitles,
         _titleVerdicts,
         _filterState
     ) { titles, verdicts, filter ->
+        val isDefault = filter.activeFilterCount == 0 && !filter.onlySubscribed
         titles.filter { title ->
             // 1. MediaType filter (Movies / Shows)
             if (filter.mediaType != MediaType.ALL && title.mediaType != filter.mediaType) {
                 return@filter false
             }
 
-            // 2. Genre filter
-            if (filter.selectedGenre != "All" && !Genres.matchesGenre(title.genreIds, filter.selectedGenre)) {
+            // 2. Genre filter (Only enforce client-side if titles are from unfiltered trending,
+            // otherwise TMDB discover already strictly filtered by genre)
+            if (isDefault && filter.selectedGenre != "All" && title.genreIds.isNotEmpty() && !Genres.matchesGenre(title.genreIds, filter.selectedGenre)) {
                 return@filter false
             }
 
@@ -95,18 +113,18 @@ class DiscoverViewModel(
             }
 
             // 4. Rating filter
-            if (title.voteAverage < filter.ratingFilter.minRating) {
+            if (filter.ratingFilter.minRating > 0.0 && title.voteAverage > 0.0 && title.voteAverage < filter.ratingFilter.minRating) {
                 return@filter false
             }
 
-            // 5. Only Subscribed (Included in user's active subscriptions)
+            // 5. Subscriptions filter (Only hide if verdict has loaded and is explicitly not included)
             val verdict = verdicts[title.id]
             if (filter.onlySubscribed || filter.availabilityFilter == AvailabilityFilter.SUBSCRIBED_ONLY) {
-                if (verdict !is Verdict.Included) {
+                if (verdict != null && verdict !is Verdict.Included) {
                     return@filter false
                 }
             } else if (filter.availabilityFilter == AvailabilityFilter.RENT_BUY) {
-                if (verdict !is Verdict.RentOrBuy) {
+                if (verdict != null && verdict !is Verdict.RentOrBuy) {
                     return@filter false
                 }
             }
@@ -116,15 +134,55 @@ class DiscoverViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        loadTrending()
+        // Observe filter state with debouncing to query all eligible titles
+        viewModelScope.launch {
+            _filterState
+                .debounce(200)
+                .distinctUntilChanged()
+                .collect { filter ->
+                    fetchTitles(filter)
+                }
+        }
     }
 
     fun loadTrending() {
+        fetchTitles(_filterState.value)
+    }
+
+    private fun fetchTitles(filter: DiscoverFilterState) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
+            currentPage = 1
+            _canLoadMore.value = true
 
-            val result = tmdbRepository.getTrending()
+            val yearRange = when (filter.yearFilter) {
+                YearFilter.YEAR_2024_PLUS -> Pair("2024-01-01", null)
+                YearFilter.YEAR_2020_2023 -> Pair("2020-01-01", "2023-12-31")
+                YearFilter.YEAR_2010S -> Pair("2010-01-01", "2019-12-31")
+                YearFilter.CLASSICS -> Pair(null, "2009-12-31")
+                YearFilter.ALL -> Pair(null, null)
+            }
+
+            val isDefault = filter.activeFilterCount == 0 && !filter.onlySubscribed
+
+            val result = if (isDefault) {
+                tmdbRepository.getTrending()
+            } else {
+                tmdbRepository.discoverTitles(
+                    mediaType = filter.mediaType,
+                    genreName = filter.selectedGenre,
+                    releaseDateGte = yearRange.first,
+                    releaseDateLte = yearRange.second,
+                    minRating = if (filter.ratingFilter.minRating > 0.0) filter.ratingFilter.minRating else null,
+                    watchRegion = countryCode.value,
+                    withWatchProviders = subscribedProviderIds.value,
+                    onlySubscribed = filter.onlySubscribed,
+                    page = 1,
+                    pageCount = 2
+                )
+            }
+
             result.fold(
                 onSuccess = { titles ->
                     _trendingTitles.value = titles
@@ -133,7 +191,57 @@ class DiscoverViewModel(
                 },
                 onFailure = { error ->
                     _isLoading.value = false
-                    _errorMessage.value = error.localizedMessage ?: "Failed to load trending titles"
+                    _errorMessage.value = error.localizedMessage ?: "Failed to load titles"
+                }
+            )
+        }
+    }
+
+    fun loadMoreTitles() {
+        if (_isLoading.value || _isLoadingMore.value || !_canLoadMore.value) return
+        val filter = _filterState.value
+        val isDefault = filter.activeFilterCount == 0 && !filter.onlySubscribed
+        if (isDefault) return // Trending has fixed 40 items
+
+        viewModelScope.launch {
+            _isLoadingMore.value = true
+            currentPage += 2
+
+            val yearRange = when (filter.yearFilter) {
+                YearFilter.YEAR_2024_PLUS -> Pair("2024-01-01", null)
+                YearFilter.YEAR_2020_2023 -> Pair("2020-01-01", "2023-12-31")
+                YearFilter.YEAR_2010S -> Pair("2010-01-01", "2019-12-31")
+                YearFilter.CLASSICS -> Pair(null, "2009-12-31")
+                YearFilter.ALL -> Pair(null, null)
+            }
+
+            val result = tmdbRepository.discoverTitles(
+                mediaType = filter.mediaType,
+                genreName = filter.selectedGenre,
+                releaseDateGte = yearRange.first,
+                releaseDateLte = yearRange.second,
+                minRating = if (filter.ratingFilter.minRating > 0.0) filter.ratingFilter.minRating else null,
+                watchRegion = countryCode.value,
+                withWatchProviders = subscribedProviderIds.value,
+                onlySubscribed = filter.onlySubscribed,
+                page = currentPage,
+                pageCount = 2
+            )
+
+            result.fold(
+                onSuccess = { newTitles ->
+                    _isLoadingMore.value = false
+                    if (newTitles.isEmpty()) {
+                        _canLoadMore.value = false
+                    } else {
+                        val merged = (_trendingTitles.value + newTitles).distinctBy { "${it.id}_${it.mediaType}" }
+                        _trendingTitles.value = merged
+                        preloadVerdicts(newTitles)
+                    }
+                },
+                onFailure = {
+                    _isLoadingMore.value = false
+                    _canLoadMore.value = false
                 }
             )
         }
@@ -146,10 +254,6 @@ class DiscoverViewModel(
             onlySubscribed = newSubscribed,
             availabilityFilter = if (newSubscribed) AvailabilityFilter.SUBSCRIBED_ONLY else AvailabilityFilter.ALL
         )
-        // If enabling, ensure all verdicts are fetching
-        if (newSubscribed) {
-            preloadVerdicts(_trendingTitles.value)
-        }
     }
 
     fun setMediaType(type: MediaType) {
@@ -169,9 +273,6 @@ class DiscoverViewModel(
             availabilityFilter = availabilityFilter,
             onlySubscribed = (availabilityFilter == AvailabilityFilter.SUBSCRIBED_ONLY)
         )
-        if (availabilityFilter != AvailabilityFilter.ALL) {
-            preloadVerdicts(_trendingTitles.value)
-        }
     }
 
     fun setRatingFilter(ratingFilter: RatingFilter) {
@@ -232,6 +333,18 @@ class DiscoverViewModel(
     fun closeTitleDetails() {
         _selectedTitle.value = null
         _selectedTitleAvailability.value = null
+    }
+
+    fun toggleWatchlist(title: Title) {
+        viewModelScope.launch {
+            val isSaved = savedWatchlistIds.value.contains(title.id)
+            if (isSaved) {
+                watchlistRepository.removeFromWatchlist(title.id, title.mediaType)
+            } else {
+                val currentVerdict = _titleVerdicts.value[title.id] ?: Verdict.Unknown("Pending verification")
+                watchlistRepository.addToWatchlist(title, currentVerdict)
+            }
+        }
     }
 
     fun toggleWatchlistForSelected() {

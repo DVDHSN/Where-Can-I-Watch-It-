@@ -1,5 +1,12 @@
 package com.example.ui.screens.settings
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,10 +22,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import com.example.ui.components.bouncyClickable
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
@@ -29,8 +38,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -47,7 +54,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,17 +64,26 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.domain.model.CountryPresets
 import com.example.ui.components.ProviderLogo
-import com.example.ui.theme.CinemaBackground
-import com.example.ui.theme.CinemaBorder
-import com.example.ui.theme.CinemaPrimary
-import com.example.ui.theme.CinemaSurface
-import com.example.ui.theme.CinemaSurfaceVariant
-import com.example.ui.theme.VerdictIncluded
+import com.example.ui.components.applePressEffect
+import com.example.ui.theme.AppleBackground
+import com.example.ui.theme.AppleBlue
+import com.example.ui.theme.AppleBorder
+import com.example.ui.theme.AppleGold
+import com.example.ui.theme.AppleGreen
+import com.example.ui.theme.AppleLabelPrimary
+import com.example.ui.theme.AppleLabelSecondary
+import com.example.ui.theme.AppleLabelTertiary
+import com.example.ui.theme.ApplePurple
+import com.example.ui.theme.AppleRed
+import com.example.ui.theme.AppleSecondaryBackground
+import com.example.ui.theme.AppleSeparator
+import com.example.ui.theme.AppleTertiaryBackground
 
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onShowNotification: ((ImageVector, String, Color) -> Unit)? = null
 ) {
     val countryCode by viewModel.countryCode.collectAsStateWithLifecycle()
     val subscribedProviderIds by viewModel.subscribedProviderIds.collectAsStateWithLifecycle()
@@ -78,6 +96,7 @@ fun SettingsScreen(
 
     LaunchedEffect(cacheMessage) {
         if (cacheMessage != null) {
+            onShowNotification?.invoke(Icons.Default.Delete, cacheMessage ?: "Cache cleared", AppleGreen)
             kotlinx.coroutines.delay(2500)
             viewModel.dismissCacheMessage()
         }
@@ -86,45 +105,59 @@ fun SettingsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(CinemaBackground)
+            .background(AppleBackground)
             .verticalScroll(rememberScrollState())
-            .padding(16.dp)
+            .padding(horizontal = 16.dp)
             .testTag("settings_screen")
     ) {
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Apple Large Title Header
         Text(
             text = "Settings",
-            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-            color = MaterialTheme.colorScheme.onBackground
+            style = MaterialTheme.typography.displayMedium,
+            color = AppleLabelPrimary
         )
         Text(
-            text = "Customize your streaming regions and preferences",
+            text = "Streaming catalogs & preferences",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = AppleLabelSecondary,
+            letterSpacing = (-0.1).sp
         )
 
         Spacer(modifier = Modifier.height(20.dp))
 
         // SECTION 1: Region / Country Selection
-        SettingsSectionHeader(title = "Selected Region", icon = Icons.Default.Public)
+        AppleGroupHeader(title = "REGION & CATALOG")
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = CinemaSurface)
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = AppleSecondaryBackground),
+            border = androidx.compose.foundation.BorderStroke(0.6.dp, AppleBorder)
         ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "Current country: ${currentCountry.flagEmoji} ${currentCountry.name}",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "Switch region to browse local availability:",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    AppleIconSquircle(icon = Icons.Default.Public, tint = Color.White, bg = AppleBlue)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Active Country",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = AppleLabelPrimary
+                        )
+                        Text(
+                            text = "${currentCountry.flagEmoji} ${currentCountry.name} (${currentCountry.code})",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AppleLabelSecondary
+                        )
+                    }
+                }
 
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Country selector pills
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -135,21 +168,29 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) CinemaSurfaceVariant else Color.Transparent)
-                                .border(1.dp, if (isSelected) CinemaPrimary else CinemaBorder, RoundedCornerShape(10.dp))
-                                .clickable { viewModel.setCountry(country.code) }
-                                .padding(vertical = 10.dp),
+                                .background(if (isSelected) AppleGold else AppleTertiaryBackground)
+                                .border(
+                                    0.6.dp,
+                                    if (isSelected) AppleGold else AppleBorder,
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .applePressEffect(scaleDown = 0.92f) {
+                                    viewModel.setCountry(country.code)
+                                    onShowNotification?.invoke(Icons.Default.Public, "Switched region to ${country.name}", AppleBlue)
+                                }
+                                .padding(vertical = 9.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "${country.flagEmoji} ${country.code}",
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSelected) CinemaPrimary else MaterialTheme.colorScheme.onSurface,
-                                fontSize = 13.sp
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color(0xFF141000) else AppleLabelPrimary,
+                                fontSize = 12.5.sp
                             )
                         }
                     }
                 }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -160,17 +201,24 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) CinemaSurfaceVariant else Color.Transparent)
-                                .border(1.dp, if (isSelected) CinemaPrimary else CinemaBorder, RoundedCornerShape(10.dp))
-                                .clickable { viewModel.setCountry(country.code) }
-                                .padding(vertical = 10.dp),
+                                .background(if (isSelected) AppleGold else AppleTertiaryBackground)
+                                .border(
+                                    0.6.dp,
+                                    if (isSelected) AppleGold else AppleBorder,
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .applePressEffect(scaleDown = 0.92f) {
+                                    viewModel.setCountry(country.code)
+                                    onShowNotification?.invoke(Icons.Default.Public, "Switched region to ${country.name}", AppleBlue)
+                                }
+                                .padding(vertical = 9.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "${country.flagEmoji} ${country.code}",
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSelected) CinemaPrimary else MaterialTheme.colorScheme.onSurface,
-                                fontSize = 13.sp
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color(0xFF141000) else AppleLabelPrimary,
+                                fontSize = 12.5.sp
                             )
                         }
                     }
@@ -181,48 +229,92 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // SECTION 2: Subscriptions Checklist
-        SettingsSectionHeader(title = "My Streaming Subscriptions", icon = Icons.Default.Tv)
+        AppleGroupHeader(title = "MY STREAMING SUBSCRIPTIONS")
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = CinemaSurface)
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = AppleSecondaryBackground),
+            border = androidx.compose.foundation.BorderStroke(0.6.dp, AppleBorder)
         ) {
             Column(
                 modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
-                    text = "Verdicts are calculated strictly against these selected services:",
+                    text = "Verdicts are calculated strictly against your selected plans:",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = AppleLabelSecondary
                 )
 
-                currentCountry.popularProviders.forEach { provider ->
+                Spacer(modifier = Modifier.height(4.dp))
+
+                currentCountry.popularProviders.forEachIndexed { index, provider ->
                     val isChecked = subscribedProviderIds.contains(provider.id)
+
+                    val checkScale by animateFloatAsState(
+                        targetValue = if (isChecked) 1.15f else 1f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        ),
+                        label = "check_scale"
+                    )
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (isChecked) CinemaSurfaceVariant else Color.Transparent)
-                            .clickable { viewModel.toggleSubscription(provider.id) }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .background(if (isChecked) AppleTertiaryBackground else Color.Transparent)
+                            .applePressEffect(scaleDown = 0.96f) {
+                                viewModel.toggleSubscription(provider.id)
+                                if (!isChecked) {
+                                    onShowNotification?.invoke(Icons.Default.CheckCircle, "Added ${provider.name} to active plans", AppleGreen)
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         ProviderLogo(logoUrl = provider.logoUrl, providerName = provider.name, size = 28.dp)
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = provider.name,
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = AppleLabelPrimary,
                             modifier = Modifier.weight(1f)
                         )
-                        Checkbox(
-                            checked = isChecked,
-                            onCheckedChange = { viewModel.toggleSubscription(provider.id) },
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = VerdictIncluded,
-                                checkmarkColor = Color.Black
-                            )
+
+                        // Apple Checkmark Pill
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(if (isChecked) AppleGreen else Color(0x33FFFFFF))
+                                .border(
+                                    0.5.dp,
+                                    if (isChecked) AppleGreen else Color(0x44FFFFFF),
+                                    CircleShape
+                                )
+                                .scale(checkScale),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isChecked) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (index < currentCountry.popularProviders.size - 1) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 48.dp)
+                                .height(0.5.dp)
+                                .background(AppleSeparator)
                         )
                     }
                 }
@@ -232,38 +324,51 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // SECTION 3: Notification Preferences
-        SettingsSectionHeader(title = "Watchlist Notifications", icon = Icons.Default.Notifications)
+        AppleGroupHeader(title = "NOTIFICATIONS")
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = CinemaSurface)
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = AppleSecondaryBackground),
+            border = androidx.compose.foundation.BorderStroke(0.6.dp, AppleBorder)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Availability Change Alerts",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Notify when a saved title becomes included in your active subscriptions",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    AppleIconSquircle(icon = Icons.Default.Notifications, tint = Color.White, bg = ApplePurple)
+                    Column {
+                        Text(
+                            text = "Availability Alerts",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = AppleLabelPrimary
+                        )
+                        Text(
+                            text = "Notify when a saved title is included in subscriptions",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AppleLabelSecondary
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Switch(
                     checked = notificationsEnabled,
-                    onCheckedChange = viewModel::setNotificationsEnabled,
+                    onCheckedChange = {
+                        viewModel.setNotificationsEnabled(it)
+                        onShowNotification?.invoke(Icons.Default.Notifications, if (it) "Notifications enabled" else "Notifications disabled", ApplePurple)
+                    },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.Black,
-                        checkedTrackColor = CinemaPrimary
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = AppleGreen,
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = AppleTertiaryBackground
                     )
                 )
             }
@@ -272,63 +377,89 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // SECTION 4: TMDB API Configuration
-        SettingsSectionHeader(title = "TMDB API Configuration", icon = Icons.Default.Key)
+        AppleGroupHeader(title = "TMDB API CONFIGURATION")
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = CinemaSurface)
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = AppleSecondaryBackground),
+            border = androidx.compose.foundation.BorderStroke(0.6.dp, AppleBorder)
         ) {
             Column(
                 modifier = Modifier.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (viewModel.isBuildConfigKeyAvailable) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = VerdictIncluded, modifier = Modifier.size(16.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    AppleIconSquircle(icon = Icons.Default.Key, tint = Color(0xFF141000), bg = AppleGold)
+                    Column(modifier = Modifier.weight(1f)) {
+                        if (viewModel.isBuildConfigKeyAvailable) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = AppleGreen,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "Connected via AI Studio Secrets",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                    color = AppleGreen
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = "Personal TMDB Key / Token",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = AppleLabelPrimary
+                            )
+                        }
                         Text(
-                            text = "Connected via AI Studio Secrets (TMDB_API_KEY)",
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                            color = VerdictIncluded
+                            text = "Required for movie search and streaming availability queries",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AppleLabelSecondary
                         )
                     }
-                } else {
-                    Text(
-                        text = "Optional: Custom TMDB API Key / Token",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "You can enter your personal TMDB API key (v3 api_key or v4 Read Access Token) below:",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
 
                 OutlinedTextField(
                     value = apiKeyInput,
                     onValueChange = { apiKeyInput = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Paste TMDB API Key or Access Token", fontSize = 12.sp) },
+                    placeholder = { Text("Paste TMDB API Key or Bearer Token", fontSize = 12.5.sp, color = AppleLabelTertiary) },
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = CinemaSurfaceVariant,
-                        unfocusedContainerColor = CinemaSurfaceVariant,
-                        focusedBorderColor = CinemaPrimary,
-                        unfocusedBorderColor = CinemaBorder
+                        focusedContainerColor = AppleTertiaryBackground,
+                        unfocusedContainerColor = AppleTertiaryBackground,
+                        focusedBorderColor = AppleBorder,
+                        unfocusedBorderColor = AppleBorder,
+                        focusedTextColor = AppleLabelPrimary,
+                        unfocusedTextColor = AppleLabelPrimary,
+                        cursorColor = AppleGold
                     )
                 )
 
                 Button(
-                    onClick = { viewModel.saveCustomApiKey(apiKeyInput) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = CinemaPrimary)
+                    onClick = {
+                        viewModel.saveCustomApiKey(apiKeyInput)
+                        onShowNotification?.invoke(Icons.Default.CheckCircle, "API key configuration saved", AppleGold)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .applePressEffect(scaleDown = 0.96f) {
+                            viewModel.saveCustomApiKey(apiKeyInput)
+                            onShowNotification?.invoke(Icons.Default.CheckCircle, "API key saved", AppleGold)
+                        },
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = AppleGold)
                 ) {
-                    Text("Save Key", color = Color.Black, fontWeight = FontWeight.Bold)
+                    Text("Save Key", color = Color(0xFF141000), fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                 }
             }
         }
@@ -336,64 +467,99 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // SECTION 5: Cache Management & Attribution
-        SettingsSectionHeader(title = "Data & Attribution", icon = Icons.Default.Delete)
+        AppleGroupHeader(title = "DATA & STORAGE")
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = CinemaSurface)
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = AppleSecondaryBackground),
+            border = androidx.compose.foundation.BorderStroke(0.6.dp, AppleBorder)
         ) {
             Column(
                 modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Button(
-                    onClick = viewModel::clearCache,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = CinemaSurfaceVariant)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .applePressEffect(scaleDown = 0.96f) { viewModel.clearCache() },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Clear Offline Search Cache", color = MaterialTheme.colorScheme.onSurface)
-                }
-
-                if (cacheMessage != null) {
-                    Text(
-                        text = cacheMessage!!,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = VerdictIncluded
+                    AppleIconSquircle(icon = Icons.Default.Delete, tint = Color.White, bg = AppleRed)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Clear Offline Cache",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = AppleLabelPrimary
+                        )
+                        Text(
+                            text = "Purge cached titles and availability data",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AppleLabelSecondary
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = AppleLabelTertiary,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
-                Text(
-                    text = "Attribution & Legal:\nThis product uses the TMDB API but is not endorsed or certified by TMDB. Regional watch provider metadata is powered by JustWatch.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 18.sp
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(0.5.dp)
+                        .background(AppleSeparator)
                 )
 
                 Text(
-                    text = "Where Can I Watch It? • Version 1.0.0",
+                    text = "This product uses the TMDB API but is not endorsed or certified by TMDB. Regional streaming provider metadata is powered by JustWatch.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AppleLabelSecondary,
+                    lineHeight = 17.sp,
+                    fontSize = 11.5.sp
+                )
+
+                Text(
+                    text = "Where Can I Watch It? • Version 1.0 (Apple Edition)",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    color = AppleLabelTertiary
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(36.dp))
     }
 }
 
 @Composable
-private fun SettingsSectionHeader(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.padding(bottom = 8.dp)
+private fun AppleGroupHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelSmall,
+        color = AppleLabelTertiary,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.5.sp,
+        modifier = Modifier.padding(start = 8.dp, bottom = 6.dp)
+    )
+}
+
+@Composable
+private fun AppleIconSquircle(icon: ImageVector, tint: Color, bg: Color) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .clip(RoundedCornerShape(7.dp))
+            .background(bg),
+        contentAlignment = Alignment.Center
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = CinemaPrimary, modifier = Modifier.size(18.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(17.dp)
         )
     }
 }

@@ -10,6 +10,7 @@ import com.example.data.remote.TmdbApiClient
 import com.example.data.remote.TmdbApiService
 import com.example.data.remote.dto.TmdbCountryProvidersDto
 import com.example.data.remote.dto.TmdbItemDto
+import com.example.domain.model.Genres
 import com.example.domain.model.MediaType
 import com.example.domain.model.MonetizationType
 import com.example.domain.model.Provider
@@ -17,6 +18,8 @@ import com.example.domain.model.ProviderOffer
 import com.example.domain.model.RegionalAvailability
 import com.example.domain.model.Title
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -112,6 +115,148 @@ class TmdbRepository(
                 .take(40)
                 .map { dtoToTitle(it, MediaType.ALL) }
             Result.success(titles)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun discoverTitles(
+        mediaType: MediaType = MediaType.ALL,
+        genreName: String = "All",
+        releaseDateGte: String? = null,
+        releaseDateLte: String? = null,
+        minRating: Double? = null,
+        watchRegion: String? = null,
+        withWatchProviders: Set<Int>? = null,
+        onlySubscribed: Boolean = false,
+        page: Int = 1,
+        pageCount: Int = 2
+    ): Result<List<Title>> = withContext(Dispatchers.IO) {
+        try {
+            val providerParam = if (onlySubscribed && !withWatchProviders.isNullOrEmpty()) {
+                withWatchProviders.joinToString("|")
+            } else null
+
+            val monetizationParam = if (onlySubscribed) "flatrate|free" else null
+            val ratingParam = if (minRating != null && minRating > 0.0) minRating else null
+
+            val pages = (page until (page + pageCount)).toList()
+
+            when (mediaType) {
+                MediaType.MOVIE -> {
+                    coroutineScope {
+                        val genreId = Genres.getGenreIdForApi(genreName, isTv = false)
+                        val deferredList = pages.map { p ->
+                            async {
+                                try {
+                                    apiService.discoverMovies(
+                                        page = p,
+                                        withGenres = genreId,
+                                        primaryReleaseDateGte = releaseDateGte,
+                                        primaryReleaseDateLte = releaseDateLte,
+                                        voteAverageGte = ratingParam,
+                                        watchRegion = watchRegion,
+                                        withWatchProviders = providerParam,
+                                        withWatchMonetizationTypes = monetizationParam
+                                    ).results.filter { it.posterPath != null }.map { dtoToTitle(it, MediaType.MOVIE) }
+                                } catch (e: Exception) {
+                                    emptyList()
+                                }
+                            }
+                        }
+                        val allResults = deferredList.flatMap { it.await() }.distinctBy { it.id }
+                        Result.success(allResults)
+                    }
+                }
+                MediaType.TV -> {
+                    coroutineScope {
+                        val genreId = Genres.getGenreIdForApi(genreName, isTv = true)
+                        // If genre doesn't exist on TV (e.g. Horror), return empty list instead of random TV shows
+                        if (genreId == null && !genreName.equals("All", ignoreCase = true)) {
+                            return@coroutineScope Result.success(emptyList())
+                        }
+                        val deferredList = pages.map { p ->
+                            async {
+                                try {
+                                    apiService.discoverTv(
+                                        page = p,
+                                        withGenres = genreId,
+                                        firstAirDateGte = releaseDateGte,
+                                        firstAirDateLte = releaseDateLte,
+                                        voteAverageGte = ratingParam,
+                                        watchRegion = watchRegion,
+                                        withWatchProviders = providerParam,
+                                        withWatchMonetizationTypes = monetizationParam
+                                    ).results.filter { it.posterPath != null }.map { dtoToTitle(it, MediaType.TV) }
+                                } catch (e: Exception) {
+                                    emptyList()
+                                }
+                            }
+                        }
+                        val allResults = deferredList.flatMap { it.await() }.distinctBy { it.id }
+                        Result.success(allResults)
+                    }
+                }
+                MediaType.ALL -> {
+                    coroutineScope {
+                        val movieGenreId = Genres.getGenreIdForApi(genreName, isTv = false)
+                        val tvGenreId = Genres.getGenreIdForApi(genreName, isTv = true)
+                        val canQueryTv = tvGenreId != null || genreName.equals("All", ignoreCase = true)
+
+                        val moviesDeferred = pages.map { p ->
+                            async {
+                                try {
+                                    apiService.discoverMovies(
+                                        page = p,
+                                        withGenres = movieGenreId,
+                                        primaryReleaseDateGte = releaseDateGte,
+                                        primaryReleaseDateLte = releaseDateLte,
+                                        voteAverageGte = ratingParam,
+                                        watchRegion = watchRegion,
+                                        withWatchProviders = providerParam,
+                                        withWatchMonetizationTypes = monetizationParam
+                                    ).results.filter { it.posterPath != null }.map { dtoToTitle(it, MediaType.MOVIE) }
+                                } catch (e: Exception) {
+                                    emptyList()
+                                }
+                            }
+                        }
+
+                        val tvDeferred = if (canQueryTv) {
+                            pages.map { p ->
+                                async {
+                                    try {
+                                        apiService.discoverTv(
+                                            page = p,
+                                            withGenres = tvGenreId,
+                                            firstAirDateGte = releaseDateGte,
+                                            firstAirDateLte = releaseDateLte,
+                                            voteAverageGte = ratingParam,
+                                            watchRegion = watchRegion,
+                                            withWatchProviders = providerParam,
+                                            withWatchMonetizationTypes = monetizationParam
+                                        ).results.filter { it.posterPath != null }.map { dtoToTitle(it, MediaType.TV) }
+                                    } catch (e: Exception) {
+                                        emptyList()
+                                    }
+                                }
+                            }
+                        } else emptyList()
+
+                        val movies = moviesDeferred.flatMap { it.await() }.distinctBy { it.id }
+                        val tv = tvDeferred.flatMap { it.await() }.distinctBy { it.id }
+
+                        val combined = mutableListOf<Title>()
+                        val maxLen = maxOf(movies.size, tv.size)
+                        for (i in 0 until maxLen) {
+                            if (i < movies.size) combined.add(movies[i])
+                            if (i < tv.size) combined.add(tv[i])
+                        }
+
+                        Result.success(combined)
+                    }
+                }
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }

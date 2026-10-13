@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -37,6 +38,10 @@ class SearchViewModel(
 
     val subscribedProviderIds: StateFlow<Set<Int>> = preferencesRepository.subscribedProviderIds
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), setOf(8, 337, 119, 350))
+
+    val savedWatchlistIds: StateFlow<Set<Int>> = watchlistRepository.allWatchlist
+        .map { list -> list.map { it.id }.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     val onboardingCompleted: StateFlow<Boolean> = preferencesRepository.onboardingCompleted
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -185,6 +190,18 @@ class SearchViewModel(
     fun closeTitleDetails() {
         _selectedTitle.value = null
         _selectedTitleAvailability.value = null
+    }
+
+    fun toggleWatchlist(title: Title) {
+        viewModelScope.launch {
+            val isSaved = savedWatchlistIds.value.contains(title.id)
+            if (isSaved) {
+                watchlistRepository.removeFromWatchlist(title.id, title.mediaType)
+            } else {
+                val currentVerdict = _titleVerdicts.value[title.id] ?: Verdict.Unknown("Pending verification")
+                watchlistRepository.addToWatchlist(title, currentVerdict)
+            }
+        }
     }
 
     fun toggleWatchlistForSelected() {

@@ -16,26 +16,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import com.example.ui.components.bouncyClickable
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.LiveTv
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -45,19 +37,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.domain.model.Genres
 import com.example.domain.model.MediaType
-import com.example.ui.theme.CinemaBorder
-import com.example.ui.theme.CinemaPrimary
-import com.example.ui.theme.CinemaSurface
-import com.example.ui.theme.CinemaSurfaceVariant
-import com.example.ui.theme.VerdictIncluded
-import com.example.ui.theme.VerdictRentBuy
+import com.example.ui.components.AppleSegmentedControl
+import com.example.ui.components.applePressEffect
+import com.example.ui.theme.AppleBorder
+import com.example.ui.theme.AppleGold
+import com.example.ui.theme.AppleGreen
+import com.example.ui.theme.AppleLabelPrimary
+import com.example.ui.theme.AppleLabelSecondary
+import com.example.ui.theme.AppleLabelTertiary
+import com.example.ui.theme.AppleSecondaryBackground
+import com.example.ui.theme.AppleTertiaryBackground
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -78,16 +72,26 @@ fun DiscoverFilterBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = CinemaSurface,
+        containerColor = Color(0xFF161618),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 10.dp)
+                    .width(38.dp)
+                    .height(4.5.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x40FFFFFF))
+            )
+        },
         modifier = modifier.testTag("discover_filter_bottom_sheet")
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(horizontal = 20.dp, vertical = 6.dp)
+                .padding(bottom = 36.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             // Header
             Row(
@@ -95,277 +99,217 @@ fun DiscoverFilterBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Filter Discover",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (filterState.activeFilterCount > 0) {
+                Column {
                     Text(
-                        text = "Reset all",
-                        color = CinemaPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .clickable(onClick = onResetFilters)
-                            .padding(4.dp)
+                        text = "Filters",
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                        color = AppleLabelPrimary,
+                        letterSpacing = (-0.3).sp
+                    )
+                    Text(
+                        text = "$matchingCount titles match current criteria",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppleLabelSecondary
+                    )
+                }
+
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x33FFFFFF))
+                        .applePressEffect(scaleDown = 0.85f, onClick = onDismiss)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = AppleLabelPrimary,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            // FILTER 1: Only Subscribed
-            FilterSectionHeader(title = "Streaming Availability", icon = Icons.Default.LiveTv)
+            // SECTION 1: Media Type Segmented Control
+            AppleSectionLabel(title = "MEDIA TYPE")
+            val mediaTypes = listOf(MediaType.ALL, MediaType.MOVIE, MediaType.TV)
+            AppleSegmentedControl(
+                items = mediaTypes,
+                selectedItem = filterState.mediaType,
+                onItemSelected = { onFilterChanged(filterState.copy(mediaType = it)) },
+                itemLabel = {
+                    when (it) {
+                        MediaType.ALL -> "All Titles"
+                        MediaType.MOVIE -> "Movies"
+                        MediaType.TV -> "TV Shows"
+                    }
+                }
+            )
+
+            // SECTION 2: Subscriptions Toggle Inset Row
+            AppleSectionLabel(title = "STREAMING SUBSCRIPTIONS")
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(CinemaSurfaceVariant)
-                    .border(
-                        1.dp,
-                        if (filterState.onlySubscribed) VerdictIncluded.copy(alpha = 0.5f) else CinemaBorder,
-                        RoundedCornerShape(12.dp)
-                    )
-                    .clickable {
-                        val newOnlySub = !filterState.onlySubscribed
-                        onFilterChanged(
-                            filterState.copy(
-                                onlySubscribed = newOnlySub,
-                                availabilityFilter = if (newOnlySub) AvailabilityFilter.SUBSCRIBED_ONLY else AvailabilityFilter.ALL
-                            )
-                        )
-                    }
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(AppleSecondaryBackground)
+                    .border(0.6.dp, AppleBorder, RoundedCornerShape(14.dp))
+                    .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Only in my subscriptions",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = "Included with My Subscriptions",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = AppleLabelPrimary
                     )
                     Text(
-                        text = "Show only titles included with your active services",
+                        text = "Hide titles requiring rental or purchase",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = AppleLabelSecondary
                     )
                 }
+                Spacer(modifier = Modifier.width(10.dp))
                 Switch(
                     checked = filterState.onlySubscribed,
-                    onCheckedChange = { checked ->
-                        onFilterChanged(
-                            filterState.copy(
-                                onlySubscribed = checked,
-                                availabilityFilter = if (checked) AvailabilityFilter.SUBSCRIBED_ONLY else AvailabilityFilter.ALL
-                            )
-                        )
-                    },
+                    onCheckedChange = { onFilterChanged(filterState.copy(onlySubscribed = it)) },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.Black,
-                        checkedTrackColor = VerdictIncluded
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = AppleGreen,
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = AppleTertiaryBackground
                     )
                 )
             }
 
-            // FILTER 2: Rent / Buy Option
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // SECTION 3: Genres
+            AppleSectionLabel(title = "GENRES")
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                AvailabilityFilter.entries.forEach { option ->
-                    val isSelected = filterState.availabilityFilter == option
+                genresList.forEach { genre ->
+                    val isSelected = filterState.selectedGenre.equals(genre, ignoreCase = true)
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (isSelected) CinemaSurfaceVariant else Color.Transparent)
+                            .clip(CircleShape)
+                            .background(if (isSelected) AppleGold else AppleSecondaryBackground)
                             .border(
-                                1.dp,
-                                if (isSelected) CinemaPrimary else CinemaBorder,
-                                RoundedCornerShape(10.dp)
+                                0.6.dp,
+                                if (isSelected) AppleGold else AppleBorder,
+                                CircleShape
                             )
-                            .clickable {
-                                onFilterChanged(
-                                    filterState.copy(
-                                        availabilityFilter = option,
-                                        onlySubscribed = (option == AvailabilityFilter.SUBSCRIBED_ONLY)
-                                    )
-                                )
+                            .applePressEffect(scaleDown = 0.92f) {
+                                onFilterChanged(filterState.copy(selectedGenre = genre))
                             }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
+                            .padding(horizontal = 14.dp, vertical = 7.dp)
                     ) {
                         Text(
-                            text = option.label,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) CinemaPrimary else MaterialTheme.colorScheme.onSurface
+                            text = genre,
+                            color = if (isSelected) Color(0xFF141000) else AppleLabelPrimary,
+                            fontSize = 12.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
                     }
                 }
             }
 
-            // FILTER 3: Movies / TV Shows
-            FilterSectionHeader(title = "Content Type", icon = Icons.Default.Movie)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf(
-                    Pair("All Types", MediaType.ALL),
-                    Pair("Movies", MediaType.MOVIE),
-                    Pair("TV Shows", MediaType.TV)
-                ).forEach { (label, type) ->
-                    val isSelected = filterState.mediaType == type
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (isSelected) CinemaSurfaceVariant else Color.Transparent)
-                            .border(
-                                1.dp,
-                                if (isSelected) CinemaPrimary else CinemaBorder,
-                                RoundedCornerShape(10.dp)
-                            )
-                            .clickable { onFilterChanged(filterState.copy(mediaType = type)) }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = label,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) CinemaPrimary else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-
-            // FILTER 4: Genre
-            FilterSectionHeader(title = "Genre", icon = Icons.Default.Category)
+            // SECTION 4: Release Year
+            AppleSectionLabel(title = "RELEASE PERIOD")
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                genresList.forEach { genreName ->
-                    val isSelected = filterState.selectedGenre.equals(genreName, ignoreCase = true)
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { onFilterChanged(filterState.copy(selectedGenre = genreName)) },
-                        label = { Text(genreName, fontSize = 12.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CinemaPrimary,
-                            selectedLabelColor = Color.Black,
-                            containerColor = CinemaSurfaceVariant,
-                            labelColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSelected,
-                            borderColor = if (isSelected) CinemaPrimary else CinemaBorder
-                        )
-                    )
-                }
-            }
-
-            // FILTER 5: Release Year
-            FilterSectionHeader(title = "Release Year", icon = Icons.Default.CalendarMonth)
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                YearFilter.entries.forEach { yearOpt ->
-                    val isSelected = filterState.yearFilter == yearOpt
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { onFilterChanged(filterState.copy(yearFilter = yearOpt)) },
-                        label = { Text(yearOpt.label, fontSize = 12.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CinemaPrimary,
-                            selectedLabelColor = Color.Black,
-                            containerColor = CinemaSurfaceVariant,
-                            labelColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSelected,
-                            borderColor = if (isSelected) CinemaPrimary else CinemaBorder
-                        )
-                    )
-                }
-            }
-
-            // FILTER 6: Rating
-            FilterSectionHeader(title = "Minimum Rating", icon = Icons.Default.Star)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                RatingFilter.entries.forEach { ratingOpt ->
-                    val isSelected = filterState.ratingFilter == ratingOpt
+                YearFilter.entries.forEach { year ->
+                    val isSelected = filterState.yearFilter == year
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (isSelected) CinemaSurfaceVariant else Color.Transparent)
+                            .clip(CircleShape)
+                            .background(if (isSelected) AppleGold else AppleSecondaryBackground)
                             .border(
-                                1.dp,
-                                if (isSelected) Color(0xFFFBBF24) else CinemaBorder,
-                                RoundedCornerShape(10.dp)
+                                0.6.dp,
+                                if (isSelected) AppleGold else AppleBorder,
+                                CircleShape
                             )
-                            .clickable { onFilterChanged(filterState.copy(ratingFilter = ratingOpt)) }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
+                            .applePressEffect(scaleDown = 0.92f) {
+                                onFilterChanged(filterState.copy(yearFilter = year))
+                            }
+                            .padding(horizontal = 14.dp, vertical = 7.dp)
                     ) {
                         Text(
-                            text = ratingOpt.label,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) Color(0xFFFBBF24) else MaterialTheme.colorScheme.onSurface
+                            text = year.label,
+                            color = if (isSelected) Color(0xFF141000) else AppleLabelPrimary,
+                            fontSize = 12.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
                     }
                 }
             }
+
+            // SECTION 5: Minimum Rating
+            AppleSectionLabel(title = "MINIMUM RATING")
+            val ratingOptions = RatingFilter.entries
+            AppleSegmentedControl(
+                items = ratingOptions,
+                selectedItem = filterState.ratingFilter,
+                onItemSelected = { onFilterChanged(filterState.copy(ratingFilter = it)) },
+                itemLabel = { it.label }
+            )
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Action Button
-            Button(
-                onClick = onDismiss,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .bouncyClickable(onClick = onDismiss)
-                    .testTag("apply_discover_filters_button"),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CinemaPrimary)
+            // Action Buttons (Reset and Done)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "Show $matchingCount Result${if (matchingCount == 1) "" else "s"}",
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold
-                )
+                Button(
+                    onClick = onResetFilters,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .applePressEffect(scaleDown = 0.95f, onClick = onResetFilters),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = AppleSecondaryBackground),
+                    border = androidx.compose.foundation.BorderStroke(0.6.dp, AppleBorder)
+                ) {
+                    Text(
+                        text = "Reset All",
+                        color = AppleLabelPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp
+                    )
+                }
+
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .applePressEffect(scaleDown = 0.95f, onClick = onDismiss),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = AppleGold)
+                ) {
+                    Text(
+                        text = "Apply Filters",
+                        color = Color(0xFF141000),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun FilterSectionHeader(title: String, icon: ImageVector) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = CinemaPrimary,
-            modifier = Modifier.size(16.dp)
-        )
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-    }
+private fun AppleSectionLabel(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelSmall,
+        color = AppleLabelTertiary,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.5.sp
+    )
 }

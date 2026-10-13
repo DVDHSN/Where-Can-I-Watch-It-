@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -12,7 +13,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +44,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,13 +66,20 @@ import com.example.domain.model.MediaType
 import com.example.domain.model.RegionalAvailability
 import com.example.domain.model.Title
 import com.example.domain.model.Verdict
-import com.example.ui.theme.CinemaBorder
-import com.example.ui.theme.CinemaPrimary
-import com.example.ui.theme.CinemaSurface
-import com.example.ui.theme.CinemaSurfaceVariant
-import com.example.ui.theme.VerdictIncluded
-import com.example.ui.theme.VerdictRentBuy
+import com.example.ui.theme.AppleBorder
+import com.example.ui.theme.AppleGold
+import com.example.ui.theme.AppleGreen
+import com.example.ui.theme.AppleLabelPrimary
+import com.example.ui.theme.AppleLabelSecondary
+import com.example.ui.theme.AppleLabelTertiary
+import com.example.ui.theme.AppleOrange
+import com.example.ui.theme.AppleSecondaryBackground
+import com.example.ui.theme.AppleTertiaryBackground
 
+/**
+ * Apple iOS Modal Sheet for Title Details.
+ * Designed with Human Interface Guidelines, translucent materials, and spring motion.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TitleDetailsBottomSheet(
@@ -93,21 +99,32 @@ fun TitleDetailsBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = CinemaSurface,
+        containerColor = Color(0xFF161618),
+        dragHandle = {
+            // Apple Grabber Capsule
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 10.dp)
+                    .width(38.dp)
+                    .height(4.5.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x40FFFFFF))
+            )
+        },
         modifier = modifier.testTag("title_details_bottom_sheet")
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 32.dp)
+                .padding(bottom = 36.dp)
         ) {
-            // Header with backdrop
+            // Backdrop with gradient fade
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(210.dp)
-                    .background(CinemaSurfaceVariant)
+                    .height(200.dp)
+                    .background(AppleSecondaryBackground)
             ) {
                 if (title.backdropUrl != null) {
                     AsyncImage(
@@ -119,60 +136,67 @@ fun TitleDetailsBottomSheet(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(210.dp)
+                            .height(200.dp)
                     )
                 }
 
-                // Smooth cinematic dark gradient overlay
+                // Apple gradient fade overlay
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(210.dp)
+                        .height(200.dp)
                         .background(
                             brush = Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color(0xCC090A0E), CinemaSurface)
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color(0xCC161618),
+                                    Color(0xFF161618)
+                                )
                             )
                         )
                 )
 
-                // Close Button with spring hover
+                // iOS Circular Blurred Close Button
                 IconButton(
                     onClick = onDismiss,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(14.dp)
+                        .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .bouncyClickable(onClick = onDismiss)
+                        .background(Color(0x66000000))
+                        .border(0.5.dp, Color(0x33FFFFFF), CircleShape)
+                        .applePressEffect(scaleDown = 0.88f, onClick = onDismiss)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close",
-                        tint = Color.White
+                        tint = Color.White,
+                        modifier = Modifier.size(17.dp)
                     )
                 }
             }
 
-            // Main Content Body
+            // Body
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
+                    .padding(horizontal = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Title and Meta row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // Poster thumbnail with subtle border
+                    // Poster thumbnail
                     Box(
                         modifier = Modifier
-                            .width(84.dp)
+                            .width(82.dp)
                             .aspectRatio(2f / 3f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .border(1.dp, CinemaBorder, RoundedCornerShape(10.dp))
-                            .background(CinemaSurfaceVariant),
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(0.6.dp, AppleBorder, RoundedCornerShape(12.dp))
+                            .background(AppleSecondaryBackground),
                         contentAlignment = Alignment.Center
                     ) {
                         if (title.posterUrl != null) {
@@ -189,38 +213,37 @@ fun TitleDetailsBottomSheet(
 
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Text(
                             text = title.title,
-                            style = MaterialTheme.typography.headlineSmall.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = (-0.3).sp
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = (-0.35).sp
                             ),
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = AppleLabelPrimary
                         )
 
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
                         ) {
                             if (!title.releaseYear.isNullOrBlank()) {
                                 Text(
                                     text = title.releaseYear,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = AppleLabelSecondary
+                                )
+                                Text(
+                                    text = "•",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = AppleLabelSecondary.copy(alpha = 0.4f)
                                 )
                             }
                             Text(
-                                text = "•",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                            )
-                            Text(
                                 text = if (title.mediaType == MediaType.TV) "TV Series" else "Movie",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = CinemaPrimary,
-                                fontWeight = FontWeight.Bold
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = AppleGold
                             )
 
                             if (title.voteAverage > 0.0) {
@@ -228,20 +251,21 @@ fun TitleDetailsBottomSheet(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Color(0x22FACC15))
+                                        .clip(CircleShape)
+                                        .background(AppleGold.copy(alpha = 0.12f))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Star,
                                         contentDescription = null,
-                                        tint = CinemaPrimary,
-                                        modifier = Modifier.size(12.dp)
+                                        tint = AppleGold,
+                                        modifier = Modifier.size(11.dp)
                                     )
                                     Text(
                                         text = String.format("%.1f", title.voteAverage),
                                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                        color = CinemaPrimary
+                                        color = AppleGold,
+                                        fontSize = 11.sp
                                     )
                                 }
                             }
@@ -249,10 +273,10 @@ fun TitleDetailsBottomSheet(
                     }
                 }
 
-                // PRIMARY VERDICT SECTION WITH ANIMATED STATE SWITCH
+                // Streaming Verdict Section
                 AnimatedContent(
                     targetState = isLoadingVerdict,
-                    transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) },
+                    transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
                     label = "verdict_container_transition"
                 ) { loading ->
                     if (loading) {
@@ -260,29 +284,29 @@ fun TitleDetailsBottomSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(CinemaSurfaceVariant)
-                                .border(1.dp, CinemaBorder, RoundedCornerShape(14.dp))
-                                .padding(20.dp),
+                                .background(AppleSecondaryBackground)
+                                .border(0.6.dp, AppleBorder, RoundedCornerShape(14.dp))
+                                .padding(18.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = CinemaPrimary,
-                                    strokeWidth = 2.5.dp
+                                    modifier = Modifier.size(18.dp),
+                                    color = AppleGold,
+                                    strokeWidth = 2.dp
                                 )
                                 Text(
-                                    text = "Checking your subscriptions...",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    text = "Verifying subscription catalog...",
+                                    color = AppleLabelSecondary,
                                     fontSize = 13.sp
                                 )
                             }
                         }
                     } else if (verdict != null) {
-                        VerdictBannerCard(
+                        AppleVerdictCard(
                             verdict = verdict,
                             onOpenLink = { url ->
                                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
@@ -292,15 +316,18 @@ fun TitleDetailsBottomSheet(
                     }
                 }
 
-                // Watchlist action button with tactile spring animation
+                // Apple Primary Action Button: Watchlist Toggle with Haptic Spring Compression
                 val bookmarkScale by animateFloatAsState(
-                    targetValue = if (isInWatchlist) 1.08f else 1f,
-                    animationSpec = spring(dampingRatio = 0.5f, stiffness = 500f),
+                    targetValue = if (isInWatchlist) 1.05f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    ),
                     label = "bookmark_spring"
                 )
                 val buttonBg by animateColorAsState(
-                    targetValue = if (isInWatchlist) CinemaSurfaceVariant else CinemaPrimary,
-                    animationSpec = tween(250),
+                    targetValue = if (isInWatchlist) AppleTertiaryBackground else AppleGold,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy),
                     label = "button_bg_color"
                 )
 
@@ -308,32 +335,33 @@ fun TitleDetailsBottomSheet(
                     onClick = onToggleWatchlist,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
+                        .height(48.dp)
                         .testTag("watchlist_toggle_button")
-                        .bouncyClickable(onClick = onToggleWatchlist),
-                    shape = RoundedCornerShape(12.dp),
+                        .applePressEffect(scaleDown = 0.96f, onClick = onToggleWatchlist),
+                    shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = buttonBg,
-                        contentColor = if (isInWatchlist) MaterialTheme.colorScheme.onSurface else Color.Black
+                        contentColor = if (isInWatchlist) AppleLabelPrimary else Color(0xFF141000)
                     )
                 ) {
                     Icon(
                         imageVector = if (isInWatchlist) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                         contentDescription = null,
                         modifier = Modifier
-                            .size(20.dp)
+                            .size(18.dp)
                             .scale(bookmarkScale),
-                        tint = if (isInWatchlist) CinemaPrimary else Color.Black
+                        tint = if (isInWatchlist) AppleGold else Color(0xFF141000)
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (isInWatchlist) "Saved to Watchlist" else "Add to Watchlist",
+                        text = if (isInWatchlist) "Added to Watchlist" else "Add to Watchlist",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        letterSpacing = (-0.1).sp
                     )
                 }
 
-                // "AVAILABLE OUTSIDE YOUR SUBSCRIPTIONS" (Secondary options)
+                // Apple Inset Group: Alternate Available Providers
                 if (availability != null) {
                     val outsideSubscriptions = (availability.flatrateProviders + availability.freeProviders)
                         .filter { !userSubscriptions.contains(it.providerId) }
@@ -343,15 +371,16 @@ fun TitleDetailsBottomSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(14.dp))
-                                .border(1.dp, CinemaBorder, RoundedCornerShape(14.dp))
-                                .background(CinemaSurfaceVariant.copy(alpha = 0.4f))
+                                .background(AppleSecondaryBackground)
+                                .border(0.6.dp, AppleBorder, RoundedCornerShape(14.dp))
                                 .padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
-                                text = "Available outside your subscriptions",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "OTHER STREAMING OPTIONS",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AppleLabelTertiary,
+                                fontWeight = FontWeight.Bold
                             )
 
                             FlowRow(
@@ -361,9 +390,9 @@ fun TitleDetailsBottomSheet(
                                 outsideSubscriptions.forEach { provider ->
                                     Row(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(CinemaSurface)
-                                            .border(1.dp, CinemaBorder, RoundedCornerShape(8.dp))
+                                            .clip(CircleShape)
+                                            .background(AppleTertiaryBackground)
+                                            .border(0.5.dp, AppleBorder, CircleShape)
                                             .padding(horizontal = 10.dp, vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -371,12 +400,13 @@ fun TitleDetailsBottomSheet(
                                         ProviderLogo(
                                             logoUrl = provider.logoUrl,
                                             providerName = provider.providerName,
-                                            size = 20.dp
+                                            size = 18.dp
                                         )
                                         Text(
                                             text = provider.providerName,
                                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            color = AppleLabelPrimary,
+                                            fontSize = 12.sp
                                         )
                                     }
                                 }
@@ -385,19 +415,29 @@ fun TitleDetailsBottomSheet(
                     }
                 }
 
-                // Synopsis
+                // Synopsis Inset Group
                 if (title.overview.isNotBlank()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(AppleSecondaryBackground)
+                            .border(0.6.dp, AppleBorder, RoundedCornerShape(14.dp))
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         Text(
-                            text = "Synopsis",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
+                            text = "OVERVIEW",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AppleLabelTertiary,
+                            fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = title.overview,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 22.sp
+                            color = AppleLabelSecondary,
+                            lineHeight = 21.sp,
+                            fontSize = 13.5.sp
                         )
                     }
                 }
@@ -407,7 +447,7 @@ fun TitleDetailsBottomSheet(
 }
 
 @Composable
-private fun VerdictBannerCard(
+private fun AppleVerdictCard(
     verdict: Verdict,
     onOpenLink: (String) -> Unit
 ) {
@@ -415,10 +455,10 @@ private fun VerdictBannerCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(CinemaSurfaceVariant)
-            .border(1.dp, CinemaBorder, RoundedCornerShape(14.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .background(AppleSecondaryBackground)
+            .border(0.6.dp, AppleBorder, RoundedCornerShape(14.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         VerdictBadge(
             verdict = verdict,
@@ -439,31 +479,31 @@ private fun VerdictBannerCard(
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Stream on ${verdict.primaryProvider.providerName}",
+                            text = "Included with ${verdict.primaryProvider.providerName}",
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = AppleLabelPrimary
                         )
                         Text(
-                            text = "Included with active plan",
+                            text = "Ready to stream at no additional cost",
                             style = MaterialTheme.typography.bodySmall,
-                            color = VerdictIncluded,
-                            fontWeight = FontWeight.SemiBold
+                            color = AppleGreen,
+                            fontWeight = FontWeight.Medium
                         )
                     }
 
                     if (!verdict.deepLink.isNullOrBlank()) {
                         Button(
                             onClick = { onOpenLink(verdict.deepLink) },
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = CinemaPrimary),
-                            modifier = Modifier.bouncyClickable(onClick = { onOpenLink(verdict.deepLink) })
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = AppleGold),
+                            modifier = Modifier.applePressEffect(scaleDown = 0.92f, onClick = { onOpenLink(verdict.deepLink) })
                         ) {
-                            Text("Watch", fontSize = 12.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                            Text("Open", fontSize = 12.sp, color = Color.Black, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                                 contentDescription = null,
-                                modifier = Modifier.size(12.dp),
+                                modifier = Modifier.size(11.dp),
                                 tint = Color.Black
                             )
                         }
@@ -484,31 +524,34 @@ private fun VerdictBannerCard(
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Rent on ${verdict.primaryProvider.providerName}",
+                            text = "Rent or Buy on ${verdict.primaryProvider.providerName}",
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = AppleLabelPrimary
                         )
                         Text(
-                            text = verdict.priceDisplay ?: "Rental options available",
+                            text = verdict.priceDisplay ?: "Available on demand",
                             style = MaterialTheme.typography.bodySmall,
-                            color = VerdictRentBuy,
-                            fontWeight = FontWeight.SemiBold
+                            color = AppleOrange,
+                            fontWeight = FontWeight.Medium
                         )
                     }
 
                     if (!verdict.deepLink.isNullOrBlank()) {
-                        OutlinedButton(
+                        Button(
                             onClick = { onOpenLink(verdict.deepLink) },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.bouncyClickable(onClick = { onOpenLink(verdict.deepLink) })
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = AppleTertiaryBackground),
+                            modifier = Modifier
+                                .border(0.5.dp, AppleBorder, CircleShape)
+                                .applePressEffect(scaleDown = 0.92f, onClick = { onOpenLink(verdict.deepLink) })
                         ) {
-                            Text("View", fontSize = 12.sp, color = CinemaPrimary)
+                            Text("Store", fontSize = 12.sp, color = AppleLabelPrimary, fontWeight = FontWeight.SemiBold)
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                                 contentDescription = null,
-                                modifier = Modifier.size(12.dp),
-                                tint = CinemaPrimary
+                                modifier = Modifier.size(11.dp),
+                                tint = AppleLabelPrimary
                             )
                         }
                     }
@@ -517,9 +560,9 @@ private fun VerdictBannerCard(
 
             is Verdict.Unavailable -> {
                 Text(
-                    text = "No streaming, rental, or purchase options were found in ${verdict.countryCode}.",
+                    text = "This title is not currently streaming or available on digital stores in ${verdict.countryCode}.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = AppleLabelSecondary
                 )
             }
 
@@ -527,7 +570,7 @@ private fun VerdictBannerCard(
                 Text(
                     text = verdict.reason,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = AppleLabelSecondary
                 )
             }
         }

@@ -1,8 +1,15 @@
 package com.example.ui.screens.watchlist
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,18 +25,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import com.example.ui.components.bouncyClickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,7 +49,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -55,19 +66,27 @@ import coil.request.ImageRequest
 import com.example.data.local.entity.WatchlistEntity
 import com.example.domain.model.Provider
 import com.example.domain.model.Verdict
+import com.example.ui.components.AppleSegmentedControl
 import com.example.ui.components.TitleDetailsBottomSheet
 import com.example.ui.components.VerdictBadge
-import com.example.ui.theme.CinemaBackground
-import com.example.ui.theme.CinemaBorder
-import com.example.ui.theme.CinemaPrimary
-import com.example.ui.theme.CinemaSurface
-import com.example.ui.theme.CinemaSurfaceVariant
+import com.example.ui.components.applePressEffect
+import com.example.ui.theme.AppleBackground
+import com.example.ui.theme.AppleBorder
+import com.example.ui.theme.AppleGold
+import com.example.ui.theme.AppleLabelPrimary
+import com.example.ui.theme.AppleLabelSecondary
+import com.example.ui.theme.AppleLabelTertiary
+import com.example.ui.theme.AppleRed
+import com.example.ui.theme.AppleSecondaryBackground
+import com.example.ui.theme.AppleTertiaryBackground
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WatchlistScreen(
     viewModel: WatchlistViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onShowNotification: ((ImageVector, String, Color) -> Unit)? = null,
+    onNavigateToSearch: (() -> Unit)? = null
 ) {
     val watchlistItems by viewModel.watchlistItems.collectAsStateWithLifecycle()
     val filterStatus by viewModel.filterStatus.collectAsStateWithLifecycle()
@@ -90,7 +109,10 @@ fun WatchlistScreen(
             userSubscriptions = subscribedProviderIds,
             isInWatchlist = true,
             isLoadingVerdict = isLoadingDetails,
-            onToggleWatchlist = { viewModel.toggleWatchlistForSelected() },
+            onToggleWatchlist = {
+                viewModel.toggleWatchlistForSelected()
+                onShowNotification?.invoke(Icons.Default.DeleteOutline, "Removed from Watchlist", AppleLabelSecondary)
+            },
             onDismiss = { viewModel.closeDetails() },
             sheetState = sheetState
         )
@@ -106,13 +128,13 @@ fun WatchlistScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(CinemaBackground)
+            .background(AppleBackground)
             .padding(horizontal = 16.dp)
             .testTag("watchlist_screen")
     ) {
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Header with Refresh action
+        // Apple Large Title Header with Refresh Action
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -120,63 +142,81 @@ fun WatchlistScreen(
         ) {
             Column {
                 Text(
-                    text = "My Watchlist",
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-                    color = MaterialTheme.colorScheme.onBackground
+                    text = "Watchlist",
+                    style = MaterialTheme.typography.displayMedium,
+                    color = AppleLabelPrimary
                 )
                 Text(
                     text = "${watchlistItems.size} saved title${if (watchlistItems.size == 1) "" else "s"}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = AppleLabelSecondary,
+                    letterSpacing = (-0.1).sp
                 )
             }
 
+            // Apple Refresh Button with Animated Rotation
+            val refreshRotation by animateFloatAsState(
+                targetValue = if (isRefreshing) 360f else 0f,
+                animationSpec = if (isRefreshing) tween(800, easing = FastOutSlowInEasing) else spring(),
+                label = "refresh_rotation"
+            )
+
             IconButton(
-                onClick = { viewModel.refreshAllWatchlistVerdicts() },
+                onClick = {
+                    viewModel.refreshAllWatchlistVerdicts()
+                    onShowNotification?.invoke(Icons.Default.Refresh, "Checking latest streaming availability...", AppleGold)
+                },
                 enabled = !isRefreshing && watchlistItems.isNotEmpty(),
                 modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(CinemaSurfaceVariant)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(AppleSecondaryBackground)
+                    .border(0.6.dp, AppleBorder, CircleShape)
+                    .applePressEffect(scaleDown = 0.85f) {
+                        viewModel.refreshAllWatchlistVerdicts()
+                    }
             ) {
                 if (isRefreshing) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = CinemaPrimary, strokeWidth = 2.dp)
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = AppleGold,
+                        strokeWidth = 2.dp
+                    )
                 } else {
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "Refresh availability",
-                        tint = CinemaPrimary
+                        tint = if (watchlistItems.isNotEmpty()) AppleGold else AppleLabelTertiary,
+                        modifier = Modifier
+                            .size(18.dp)
+                            .rotate(refreshRotation)
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        // Status Filter Chips
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            StatusFilterChip(
-                label = "All (${watchlistItems.size})",
-                isSelected = filterStatus == "ALL",
-                onClick = { viewModel.setFilter("ALL") }
-            )
-            StatusFilterChip(
-                label = "Included (${watchlistItems.count { it.verdictType == "INCLUDED" }})",
-                isSelected = filterStatus == "INCLUDED",
-                onClick = { viewModel.setFilter("INCLUDED") }
-            )
-            StatusFilterChip(
-                label = "Rent / Buy",
-                isSelected = filterStatus == "RENT_BUY",
-                onClick = { viewModel.setFilter("RENT_BUY") }
-            )
-        }
+        // Apple Segmented Control for Watchlist Status Filter
+        val statusOptions = listOf("ALL", "INCLUDED", "RENT_BUY")
+        val currentStatus = filterStatus ?: "ALL"
+        AppleSegmentedControl(
+            items = statusOptions,
+            selectedItem = currentStatus,
+            onItemSelected = { viewModel.setFilter(it) },
+            itemLabel = { status: String ->
+                when (status) {
+                    "ALL" -> "All (${watchlistItems.size})"
+                    "INCLUDED" -> "Included (${watchlistItems.count { it.verdictType == "INCLUDED" }})"
+                    "RENT_BUY" -> "Rent/Buy"
+                    else -> status
+                }
+            }
+        )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        // List Content
+        // Watchlist Content Area
         if (watchlistItems.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -186,25 +226,64 @@ fun WatchlistScreen(
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.BookmarkBorder,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.size(56.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(68.dp)
+                            .clip(CircleShape)
+                            .background(AppleSecondaryBackground)
+                            .border(0.6.dp, AppleBorder, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.BookmarkBorder,
+                            contentDescription = null,
+                            tint = AppleGold,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+
                     Text(
-                        text = "Your Watchlist is empty",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = "Your Watchlist is Empty",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.2).sp
+                        ),
+                        color = AppleLabelPrimary
                     )
+
                     Text(
-                        text = "Save movies and shows from Search or Discover to track whether they become included with your subscriptions.",
+                        text = "Save movies and shows from Search or Discover to track whether they become available on your subscriptions.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
+                        color = AppleLabelSecondary,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 19.sp
                     )
+
+                    if (onNavigateToSearch != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Button(
+                            onClick = onNavigateToSearch,
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = AppleGold),
+                            modifier = Modifier.applePressEffect(scaleDown = 0.94f, onClick = onNavigateToSearch)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = Color(0xFF141000),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Explore Titles",
+                                color = Color(0xFF141000),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp
+                            )
+                        }
+                    }
                 }
             }
         } else if (filteredList.isEmpty()) {
@@ -217,21 +296,24 @@ fun WatchlistScreen(
                 Text(
                     text = "No titles match this filter.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = AppleLabelSecondary
                 )
             }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(bottom = 16.dp)
+                contentPadding = PaddingValues(top = 4.dp, bottom = 20.dp)
             ) {
                 items(filteredList, key = { "${it.id}_${it.mediaType}" }) { item ->
                     WatchlistItemCard(
                         item = item,
                         countryCode = countryCode,
                         onClick = { viewModel.openDetails(item) },
-                        onRemove = { viewModel.removeItem(item) }
+                        onRemove = {
+                            viewModel.removeItem(item)
+                            onShowNotification?.invoke(Icons.Default.DeleteOutline, "Removed ${item.title}", AppleLabelSecondary)
+                        }
                     )
                 }
             }
@@ -260,17 +342,17 @@ private fun WatchlistItemCard(
             Verdict.RentOrBuy(primaryProvider = provider, deepLink = item.deepLink)
         }
         "UNAVAILABLE" -> Verdict.Unavailable(countryCode = countryCode)
-        else -> Verdict.Unknown(reason = "Status unknown")
+        else -> Verdict.Unknown(reason = "Status unverified")
     }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .bouncyClickable(onClick = onClick)
-            .border(0.8.dp, CinemaBorder, RoundedCornerShape(16.dp))
+            .applePressEffect(scaleDown = 0.97f, onClick = onClick)
+            .border(0.6.dp, AppleBorder, RoundedCornerShape(16.dp))
             .testTag("watchlist_item_${item.id}"),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = CinemaSurface)
+        colors = CardDefaults.cardColors(containerColor = AppleSecondaryBackground)
     ) {
         Row(
             modifier = Modifier
@@ -281,10 +363,10 @@ private fun WatchlistItemCard(
             // Poster
             Box(
                 modifier = Modifier
-                    .width(68.dp)
+                    .width(66.dp)
                     .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(CinemaSurfaceVariant),
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(AppleTertiaryBackground),
                 contentAlignment = Alignment.Center
             ) {
                 if (posterUrl != null) {
@@ -308,8 +390,12 @@ private fun WatchlistItemCard(
             ) {
                 Text(
                     text = item.title,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 15.sp),
-                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        letterSpacing = (-0.2).sp
+                    ),
+                    color = AppleLabelPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -318,7 +404,8 @@ private fun WatchlistItemCard(
                     Text(
                         text = item.releaseYear,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = AppleLabelSecondary,
+                        fontSize = 12.sp
                     )
                 }
 
@@ -330,41 +417,22 @@ private fun WatchlistItemCard(
                 )
             }
 
+            // Quick Remove Button with Apple Press Effect
             IconButton(
                 onClick = onRemove,
-                modifier = Modifier.testTag("remove_watchlist_${item.id}")
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .applePressEffect(scaleDown = 0.82f, onClick = onRemove)
+                    .testTag("remove_watchlist_${item.id}")
             ) {
                 Icon(
                     imageVector = Icons.Default.DeleteOutline,
                     contentDescription = "Remove from watchlist",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = AppleLabelTertiary,
+                    modifier = Modifier.size(19.dp)
                 )
             }
         }
     }
-}
-
-@Composable
-private fun StatusFilterChip(
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    FilterChip(
-        selected = isSelected,
-        onClick = onClick,
-        label = { Text(label, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = CinemaPrimary,
-            selectedLabelColor = Color.Black,
-            containerColor = CinemaSurface,
-            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-        ),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = isSelected,
-            borderColor = if (isSelected) CinemaPrimary else CinemaBorder
-        ),
-        modifier = Modifier.bouncyClickable(onClick = onClick)
-    )
 }

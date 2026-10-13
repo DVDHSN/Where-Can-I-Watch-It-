@@ -89,6 +89,10 @@ class DiscoverFilterTest {
 
         assertTrue(Genres.matchesGenre(classic2008.genreIds, "Action"))
         assertFalse(Genres.matchesGenre(comedy2015.genreIds, "Action"))
+
+        // New mappings: Adventure, Fantasy, Thriller
+        assertTrue(Genres.matchesGenre(movie2024.genreIds, "Adventure"))
+        assertTrue(Genres.matchesGenre(show2022.genreIds, "Fantasy"))
     }
 
     @Test
